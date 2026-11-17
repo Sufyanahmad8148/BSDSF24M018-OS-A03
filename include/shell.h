@@ -24,4 +24,6 @@ void add_to_history(const char* cmd);
 const char* get_history(int n);
 void print_history(void);
 
+char** shell_completion(const char* text, int start, int end);
+
 #endif // SHELL_H

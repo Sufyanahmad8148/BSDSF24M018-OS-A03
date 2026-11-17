@@ -1,16 +1,21 @@
 #include "shell.h"
+#include <readline/readline.h>
+#include <readline/history.h>
 
 int main() {
     char* cmdline;
     char** arglist;
 
-    while ((cmdline = read_cmd(PROMPT, stdin)) != NULL) {
-        if (cmdline[0] == '\0') {          // empty line: nothing to do
+    // Tell readline to use our completer for the first word (commands)
+    rl_attempted_completion_function = shell_completion;
+
+    while ((cmdline = readline(PROMPT)) != NULL) {   // readline prints the prompt
+        if (cmdline[0] == '\0') {                    // empty line
             free(cmdline);
             continue;
         }
 
-        // !n  -> replace the line with the n-th command from history
+        // !n  -> replace the line with the n-th command from our history
         if (cmdline[0] == '!') {
             const char* old = get_history(atoi(cmdline + 1));
             if (old == NULL) {
@@ -20,10 +25,11 @@ int main() {
             }
             free(cmdline);
             cmdline = strdup(old);
-            printf("%s\n", cmdline);       // show what is being re-run
+            printf("%s\n", cmdline);
         }
 
-        add_to_history(cmdline);
+        add_to_history(cmdline);   // our own list (used by 'history' and '!n')
+        add_history(cmdline);      // readline's list (used by Up/Down arrows)
 
         if ((arglist = tokenize(cmdline)) != NULL) {
             if (handle_builtin(arglist) == 0) {
