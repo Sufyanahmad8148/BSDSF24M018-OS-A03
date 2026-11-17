@@ -18,10 +18,15 @@ int handle_builtin(char** arglist) {
         printf("  exit      - exit the shell\n");
         printf("  help      - show this message\n");
         printf("  jobs      - list background jobs (not yet implemented)\n");
+        printf("  history   - show previous commands (use !n to re-run command n)\n");
         return 1;
     }
     if (strcmp(arglist[0], "jobs") == 0) {
         printf("Job control not yet implemented.\n");
+        return 1;
+    }
+    if (strcmp(arglist[0], "history") == 0) {
+        print_history();
         return 1;
     }
     return 0;

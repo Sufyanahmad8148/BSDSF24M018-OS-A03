@@ -60,3 +60,28 @@ char** tokenize(char* cmdline) {
     arglist[argnum] = NULL;
     return arglist;
 }
+/* ---------- Command history (ring buffer) ---------- */
+static char* history[HISTORY_SIZE];
+static int hist_total = 0;   /* total commands ever stored */
+
+static int first_valid(void) {
+    return hist_total > HISTORY_SIZE ? hist_total - HISTORY_SIZE + 1 : 1;
+}
+
+void add_to_history(const char* cmd) {
+    int idx = hist_total % HISTORY_SIZE;
+    free(history[idx]);              /* frees the oldest entry when full */
+    history[idx] = strdup(cmd);
+    hist_total++;
+}
+
+const char* get_history(int n) {
+    if (n < first_valid() || n > hist_total) return NULL;
+    return history[(n - 1) % HISTORY_SIZE];
+}
+
+void print_history(void) {
+    for (int i = first_valid(); i <= hist_total; i++) {
+        printf("%d  %s\n", i, history[(i - 1) % HISTORY_SIZE]);
+    }
+}
