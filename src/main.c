@@ -33,7 +33,11 @@ int main() {
         add_to_history(cmdline);
         add_history(cmdline);
 
-        process_line(cmdline);                       /* tokenize, split on ; &, execute */
+        if (is_if_line(cmdline)) {
+            handle_if(cmdline);                      /* multi-line if/then/else/fi */
+        } else {
+            process_line(cmdline);                   /* normal command line */
+        }
         free(cmdline);
     }
 
