@@ -1,0 +1,15 @@
+total 40
+-rw-r--r-- 1 sufyan sufyan  399 Nov 17 15:04 Makefile
+-rw-r--r-- 1 sufyan sufyan   20 Nov 17 14:19 README.md
+drwxr-xr-x 2 sufyan sufyan 4096 Nov 18 20:06 feature5_backup
+-rw-r--r-- 1 sufyan sufyan    0 Nov 19 00:12 file_list.txt
+-rw-r--r-- 1 sufyan sufyan   19 Nov 18 20:10 fruits.txt
+-rw-r--r-- 1 sufyan sufyan   19 Nov 18 20:08 fruits.txt
+cat
+drwxr-xr-x 2 sufyan sufyan 4096 Nov 18 19:55 include
+drwxr-xr-x 2 sufyan sufyan 4096 Nov 19 00:10 obj
+-rw-r--r-- 1 sufyan sufyan   12 Nov 18 19:35 output.txt
+-rw-r--r-- 1 sufyan sufyan    0 Nov 18 20:10 result.txt
+-rw-r--r-- 1 sufyan sufyan    6 Nov 18 20:08 result.txt
+cat
+drwxr-xr-x 2 sufyan sufyan 4096 Nov 18 20:06 src
