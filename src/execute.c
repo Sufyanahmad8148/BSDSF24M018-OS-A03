@@ -2,14 +2,14 @@
 
 #define MAX_STAGES 16      /* max commands connected by pipes */
 
-/* Runs inside a child process: handle < and >, then become the program. */
-static void run_stage(char** stage) {
+/* Runs inside a child process: handle < and >, then become the program.
+   no_tty_stdin = 1 for the first command of a background job. */
+static void run_stage(char** stage, int no_tty_stdin) {
     char* argv[MAXARGS + 1];
     char* infile = NULL;
     char* outfile = NULL;
     int argc = 0;
 
-    /* separate the real arguments from the redirection tokens */
     for (int i = 0; stage[i] != NULL; i++) {
         if (strcmp(stage[i], "<") == 0 || strcmp(stage[i], ">") == 0) {
             if (stage[i + 1] == NULL) {
@@ -18,7 +18,7 @@ static void run_stage(char** stage) {
             }
             if (stage[i][0] == '<') infile = stage[i + 1];
             else                    outfile = stage[i + 1];
-            i++;                                   /* skip the file name */
+            i++;
         } else {
             argv[argc++] = stage[i];
         }
@@ -30,38 +30,48 @@ static void run_stage(char** stage) {
         _exit(1);
     }
 
-    if (infile != NULL) {                          /* cmd < file */
+    if (infile != NULL) {
         int fd = open(infile, O_RDONLY);
         if (fd < 0) { perror(infile); _exit(1); }
-        dup2(fd, STDIN_FILENO);                    /* stdin now reads from the file */
-        close(fd);                                 /* original fd no longer needed */
+        dup2(fd, STDIN_FILENO);
+        close(fd);
+    } else if (no_tty_stdin) {                     /* background job must not read the keyboard */
+        int fd = open("/dev/null", O_RDONLY);
+        if (fd >= 0) { dup2(fd, STDIN_FILENO); close(fd); }
     }
-    if (outfile != NULL) {                         /* cmd > file */
+    if (outfile != NULL) {
         int fd = open(outfile, O_WRONLY | O_CREAT | O_TRUNC, 0644);
         if (fd < 0) { perror(outfile); _exit(1); }
-        dup2(fd, STDOUT_FILENO);                   /* stdout now writes to the file */
+        dup2(fd, STDOUT_FILENO);
         close(fd);
     }
 
-    /* built-ins used with a pipe/redirect (e.g. "history > h.txt") run here */
     if (handle_builtin(argv)) {
         fflush(stdout);
         _exit(0);
     }
 
     execvp(argv[0], argv);
-    perror(argv[0]);                               /* only reached if exec failed */
+    perror(argv[0]);
     _exit(127);
 }
 
-/* Runs a command line that may contain pipes and redirections.
-   Returns the exit status of the last command. */
-int execute(char** arglist) {
-    char** stages[MAX_STAGES];     /* stages[k] = tokens of the k-th command */
+/* Runs one command line segment (may contain pipes and redirections).
+   background = 1: do NOT wait; remember the job instead.
+   Returns the exit status (0 for a background job that was just started). */
+int execute(char** arglist, int background) {
+    char** stages[MAX_STAGES];
     pid_t pids[MAX_STAGES];
+    char cmdtext[MAX_LEN] = "";
     int n = 0;
 
-    /* cut the token list at every "|" so each stage is its own NULL-terminated list */
+    if (background) {                              /* text shown by 'jobs' */
+        for (int i = 0; arglist[i] != NULL; i++) {
+            strncat(cmdtext, arglist[i], sizeof(cmdtext) - strlen(cmdtext) - 1);
+            strncat(cmdtext, " ", sizeof(cmdtext) - strlen(cmdtext) - 1);
+        }
+    }
+
     stages[n++] = arglist;
     for (int i = 0; arglist[i] != NULL; i++) {
         if (strcmp(arglist[i], "|") == 0) {
@@ -70,7 +80,7 @@ int execute(char** arglist) {
                 return 1;
             }
             free(arglist[i]);
-            arglist[i] = NULL;                     /* terminates the previous stage */
+            arglist[i] = NULL;
             stages[n++] = &arglist[i + 1];
         }
     }
@@ -81,15 +91,15 @@ int execute(char** arglist) {
         }
     }
 
-    int prev_read = -1;            /* read end of the previous pipe */
+    int prev_read = -1;
     int started = 0;
     for (int k = 0; k < n; k++) {
         int fd[2] = {-1, -1};
-        if (k < n - 1 && pipe(fd) < 0) {           /* pipe only between two commands */
+        if (k < n - 1 && pipe(fd) < 0) {
             perror("pipe");
             break;
         }
-        fflush(NULL);                              /* no duplicated buffered output in the child */
+        fflush(NULL);
         pid_t pid = fork();
         if (pid < 0) {
             perror("fork");
@@ -97,31 +107,37 @@ int execute(char** arglist) {
             break;
         }
         if (pid == 0) {                            /* ----- child ----- */
-            if (prev_read != -1) {                 /* read from the previous command */
+            if (prev_read != -1) {
                 dup2(prev_read, STDIN_FILENO);
                 close(prev_read);
             }
-            if (fd[1] != -1) {                     /* write into the next command */
+            if (fd[1] != -1) {
                 dup2(fd[1], STDOUT_FILENO);
-                close(fd[0]);                      /* close BOTH unused pipe ends */
+                close(fd[0]);
                 close(fd[1]);
             }
-            run_stage(stages[k]);                  /* never returns */
+            run_stage(stages[k], background && k == 0);
         }
-        /* ----- parent ----- */
-        pids[started++] = pid;
-        if (prev_read != -1) close(prev_read);     /* parent must close its copies too, */
-        if (fd[1] != -1) close(fd[1]);             /* otherwise readers never see EOF */
+        pids[started++] = pid;                     /* ----- parent ----- */
+        if (prev_read != -1) close(prev_read);
+        if (fd[1] != -1) close(fd[1]);
         prev_read = fd[0];
     }
     if (prev_read != -1) close(prev_read);
 
+    if (started == 0) return 1;
+
+    if (background) {                              /* do NOT call waitpid for it */
+        int id = add_job(pids[started - 1], cmdtext);
+        printf("[%d] %d\n", id, (int)pids[started - 1]);
+        return 0;
+    }
+
     int status = 0;
-    for (int k = 0; k < started; k++) {            /* wait for every child */
+    for (int k = 0; k < started; k++) {
         int st;
         waitpid(pids[k], &st, 0);
         if (k == started - 1) status = st;
     }
-    if (started == 0) return 1;
     return WIFEXITED(status) ? WEXITSTATUS(status) : 128 + WTERMSIG(status);
 }

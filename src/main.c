@@ -4,11 +4,15 @@
 
 int main() {
     char* cmdline;
-    char** arglist;
 
     rl_attempted_completion_function = shell_completion;
 
-    while ((cmdline = readline(PROMPT)) != NULL) {
+    while (1) {
+        reap_jobs();                                 /* collect finished background jobs first */
+
+        cmdline = readline(PROMPT);
+        if (cmdline == NULL) break;                  /* Ctrl+D */
+
         if (cmdline[0] == '\0') {
             free(cmdline);
             continue;
@@ -29,14 +33,7 @@ int main() {
         add_to_history(cmdline);
         add_history(cmdline);
 
-        if ((arglist = tokenize(cmdline)) != NULL) {
-            /* a plain built-in must run in the shell process; anything with a
-               pipe or redirection (or any external command) goes to execute() */
-            if (has_operator(arglist) || !handle_builtin(arglist)) {
-                execute(arglist);
-            }
-            free_tokens(arglist);
-        }
+        process_line(cmdline);                       /* tokenize, split on ; &, execute */
         free(cmdline);
     }
 
