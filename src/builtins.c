@@ -3,6 +3,19 @@
 int last_status = 0;
 
 int handle_builtin(char** arglist) {
+    /* NAME=value  ->  store a shell variable (never forked) */
+    if (is_assignment(arglist[0])) {
+        if (arglist[1] != NULL) {
+            fprintf(stderr, "shell: unexpected text after assignment (use quotes: NAME=\"a b\")\n");
+            last_status = 1;
+            return 1;
+        }
+        char* eq = strchr(arglist[0], '=');
+        *eq = '\0';                                /* split into NAME and value */
+        set_var(arglist[0], eq + 1);
+        last_status = 0;
+        return 1;
+    }
     if (strcmp(arglist[0], "exit") == 0) {
         printf("Goodbye!\n");
         exit(0);
@@ -34,6 +47,11 @@ int handle_builtin(char** arglist) {
     }
     if (strcmp(arglist[0], "history") == 0) {
         print_history();
+        last_status = 0;
+        return 1;
+    }
+    if (strcmp(arglist[0], "set") == 0) {
+        print_vars();
         last_status = 0;
         return 1;
     }

@@ -2,6 +2,9 @@
 
 /* Run one segment (the tokens between ; or &). */
 static int run_segment(char** seg, int background) {
+    expand_args(seg);                              /* $NAME -> value, before running anything */
+    if (seg[0][0] == '\0') return 0;               /* e.g. "$UNSET" expanded to nothing */
+
     /* a lone built-in (no pipe/redirect) must run inside the shell process */
     if (!has_operator(seg) && handle_builtin(seg)) return last_status;
     return execute(seg, background);
